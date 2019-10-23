@@ -30,11 +30,22 @@
     return asset;
 }
 
+//获取音频资源
+- (AVURLAsset *)getAudioAsset
+{
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"test-audio" ofType:@"wav"];
+    NSURL *pathUrl = [NSURL fileURLWithPath:path];
+    AVURLAsset *asset = [AVURLAsset assetWithURL:pathUrl];
+    NSParameterAssert(asset);   //实际音频可能与封装格式有差异
+    return asset;
+}
 /**
  视频裁剪
  @param startTime 起始时刻
  @param endTime 结束时刻
  @param asset 视频资源
+ @param filePath 裁剪后的文件路径(可指定)
+ @param completion 完成回调
  */
 - (void)cuteVideoByStartTime:(NSTimeInterval)startTime endTime:(NSTimeInterval)endTime videoAsset:(AVURLAsset *)asset filePath:(NSURL *)filePath completion:(void(^)(NSURL *fileURL))completion
 {
@@ -86,8 +97,83 @@
     session.timeRange = range;
     [session exportAsynchronouslyWithCompletionHandler:^{
            if ([session status] == AVAssetExportSessionStatusCompleted) {
-               NSLog(@"%@",[NSThread currentThread]);
-               NSLog(@"%@",session.outputURL);
+               NSLog(@"导出成功");
+               if (completion) {
+                   completion(session.outputURL);
+               }
+           }else {
+               dispatch_async(dispatch_get_main_queue(), ^{
+                   NSLog(@"导出失败");
+               });
+           }
+       }];
+}
+
+/**
+ 视频合成音轨
+ @param videoAsset 视频资源
+ @param audioAsset 音频资源
+ @param filePath 裁剪后的文件路径(可指定)
+ @param completion 完成回调
+ */
+- (void)compostionWithVideoAsset:(AVURLAsset *)videoAsset audioAsset:(AVURLAsset *)audioAsset filePath:(NSURL *)filePath completion:(void(^)(NSURL *fileURL))completion
+{
+    AVAssetTrack *videoAssetTrack = [[videoAsset tracksWithMediaType:AVMediaTypeVideo] firstObject];    //视频轨道
+    AVAssetTrack *audioAssetTrack = [[audioAsset tracksWithMediaType:AVMediaTypeAudio] firstObject]; // 新添加音轨
+    
+    AVMutableComposition *composition = [[AVMutableComposition alloc] init]; // AVAsset的子类
+    AVMutableCompositionTrack *videoTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid]; // 视频轨道
+    [videoTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.duration) ofTrack:videoAssetTrack atTime:kCMTimeZero error:nil]; // 在视频轨道插入一个时间段的视频
+    
+    AVMutableCompositionTrack *audioTrack = [composition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid]; // 音轨
+    [audioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, audioAsset.duration) ofTrack:audioAssetTrack atTime:kCMTimeZero error:nil]; // 插入音频数据，否则没有声音
+    
+    CMTimeRange range = CMTimeRangeMake(kCMTimeZero, videoAsset.duration);
+    // 导出视频
+    AVAssetExportSession *session = [[AVAssetExportSession alloc] initWithAsset:composition presetName:AVAssetExportPresetHighestQuality];
+    session.outputURL = filePath;
+    session.outputFileType = AVFileTypeMPEG4;
+    session.timeRange = range;
+    [session exportAsynchronouslyWithCompletionHandler:^{
+           if ([session status] == AVAssetExportSessionStatusCompleted) {
+               NSLog(@"导出成功");
+               if (completion) {
+                   completion(session.outputURL);
+               }
+           }else {
+               dispatch_async(dispatch_get_main_queue(), ^{
+                   NSLog(@"导出失败");
+               });
+           }
+       }];
+}
+
+/**
+ 音轨合成音轨
+ @param videoAsset 视频资源
+ @param audioAsset 音频资源
+ @param filePath 裁剪后的文件路径(可指定)
+ @param completion 完成回调
+ */
+- (void)compostionAudioWithVideoAsset:(AVURLAsset *)videoAsset audioAsset:(AVURLAsset *)audioAsset filePath:(NSURL *)filePath completion:(void(^)(NSURL *fileURL))completion{
+    AVAssetTrack *originAudioAssetTrack = [[videoAsset tracksWithMediaType:AVMediaTypeAudio] firstObject];    //视频轨道
+    AVAssetTrack *audioAssetTrack = [[audioAsset tracksWithMediaType:AVMediaTypeAudio] firstObject]; // 新添加音轨
+    
+    AVMutableComposition *composition = [[AVMutableComposition alloc] init]; // AVAsset的子类
+    AVMutableCompositionTrack *videoOriginAudioTrack = [composition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid]; // 视频原音轨道
+    [videoOriginAudioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.duration) ofTrack:originAudioAssetTrack atTime:kCMTimeZero error:nil]; // 在视频轨道插入一个时间段的音轨
+    
+    AVMutableCompositionTrack *audioTrack = [composition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid]; // 音轨
+    [audioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, audioAsset.duration) ofTrack:audioAssetTrack atTime:kCMTimeZero error:nil]; // 插入音频数据，否则没有声音
+    
+    CMTimeRange range = CMTimeRangeMake(kCMTimeZero, audioAsset.duration);
+    // 导出视频
+    AVAssetExportSession *session = [[AVAssetExportSession alloc] initWithAsset:composition presetName:AVAssetExportPresetAppleM4A];
+    session.outputURL = filePath;
+    session.outputFileType = AVFileTypeAppleM4A;
+    session.timeRange = range;
+    [session exportAsynchronouslyWithCompletionHandler:^{
+           if ([session status] == AVAssetExportSessionStatusCompleted) {
                NSLog(@"导出成功");
                if (completion) {
                    completion(session.outputURL);

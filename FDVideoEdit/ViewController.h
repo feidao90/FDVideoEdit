@@ -11,6 +11,8 @@
 typedef NS_ENUM(NSInteger, CLICKType)
 {
     Cute = 0,
+    VideoComposition,
+    AudioComposition,
 };
 
 @interface ViewController : UIViewController
