@@ -7,6 +7,7 @@
 //
 
 #import "FDVideoManager.h"
+#import <UIKit/UIKit.h>
 
 @implementation FDVideoManager
 
@@ -184,5 +185,98 @@
                });
            }
        }];
+}
+
+/**
+ 添加水印
+ @param videoAsset 视频资源
+ @param handler 回到
+ */
+- (void)addWaterMarkTypeWithCorAnimationAndInputVideoURL:(AVURLAsset *)videoAsset WithCompletionHandler:(void (^)(NSURL* outPutURL))handler{
+    AVMutableComposition *mixComposition = [[AVMutableComposition alloc] init];
+      AVMutableCompositionTrack *videoTrack = [mixComposition addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid];
+      [videoTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.duration)
+                          ofTrack:[[videoAsset tracksWithMediaType:AVMediaTypeVideo] firstObject]
+                           atTime:kCMTimeZero error:nil];
+      //2 音频通道
+      AVMutableCompositionTrack *audioTrack = [mixComposition addMutableTrackWithMediaType:AVMediaTypeAudio                                         preferredTrackID:kCMPersistentTrackID_Invalid];
+      [audioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.duration)
+                          ofTrack:[[videoAsset tracksWithMediaType:AVMediaTypeAudio] firstObject]
+                           atTime:kCMTimeZero error:nil];
+      AVMutableVideoCompositionInstruction *mainInstruction = [AVMutableVideoCompositionInstruction videoCompositionInstruction];
+      mainInstruction.timeRange = CMTimeRangeMake(kCMTimeZero, videoAsset.duration);
+      AVMutableVideoCompositionLayerInstruction *videolayerInstruction = [AVMutableVideoCompositionLayerInstruction videoCompositionLayerInstructionWithAssetTrack:videoTrack];
+      [videolayerInstruction setOpacity:0.0 atTime:videoAsset.duration];
+      mainInstruction.layerInstructions = [NSArray arrayWithObjects:videolayerInstruction,nil];
+      AVMutableVideoComposition *mainCompositionInst = [AVMutableVideoComposition videoComposition];
+      AVAssetTrack *videoAssetTrack = [[videoAsset tracksWithMediaType:AVMediaTypeVideo] firstObject];
+      CGSize naturalSize = videoAssetTrack.naturalSize;
+      
+      float renderWidth, renderHeight;
+      renderWidth = naturalSize.width;
+      renderHeight = naturalSize.height;
+      mainCompositionInst.renderSize = CGSizeMake(renderWidth, renderHeight);
+      mainCompositionInst.instructions = [NSArray arrayWithObject:mainInstruction];
+      mainCompositionInst.frameDuration = CMTimeMake(1, 30);
+      [self applyVideoEffectsToComposition:mainCompositionInst size:naturalSize];
+      
+      NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+      NSString *documentsDirectory = [paths objectAtIndex:0];
+      NSString *myPathDocs =  [documentsDirectory stringByAppendingPathComponent:
+                               [NSString stringWithFormat:@"FinalVideo-%d.mp4",arc4random() % 1000]];
+      NSURL* videoUrl = [NSURL fileURLWithPath:myPathDocs];
+      AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:mixComposition     presetName:AVAssetExportPresetHighestQuality];
+      exporter.outputURL = videoUrl;
+      exporter.outputFileType = AVFileTypeMPEG4;
+      exporter.shouldOptimizeForNetworkUse = YES;
+      exporter.videoComposition = mainCompositionInst;
+      [exporter exportAsynchronouslyWithCompletionHandler:^{
+          dispatch_async(dispatch_get_main_queue(), ^{
+              if( exporter.status == AVAssetExportSessionStatusCompleted ){
+                  handler([NSURL fileURLWithPath:myPathDocs]);
+              }else if( exporter.status == AVAssetExportSessionStatusFailed )
+              {
+                  NSLog(@"failed");
+              }
+          });
+      }];
+}
+
+#pragma mark - private method
+/**
+ 设置水印及位置
+ @param composition 视频的结构
+ @param size 视频的尺寸
+ */
+- (void)applyVideoEffectsToComposition:(AVMutableVideoComposition *)composition size:(CGSize)size
+{
+    // 文字
+//    CATextLayer *subtitle1Text = [[CATextLayer alloc] init];
+//    //    [subtitle1Text setFont:@"Helvetica-Bold"];
+//    [subtitle1Text setFontSize:36];
+//    [subtitle1Text setFrame:CGRectMake(10, size.height-10-100, size.width, 100)];
+//    [subtitle1Text setString:@"feidaofeidao"];
+//    //    [subtitle1Text setAlignmentMode:kCAAlignmentCenter];
+//    [subtitle1Text setForegroundColor:[[UIColor whiteColor] CGColor]];
+    
+    //图片
+    CALayer*picLayer = [CALayer layer];
+    picLayer.contents = (id)[UIImage imageNamed:@"watermark"].CGImage;
+    picLayer.frame = CGRectMake(size.width-15-87, 15, 87, 26);
+    
+    CALayer *overlayLayer = [CALayer layer];
+    [overlayLayer addSublayer:picLayer];
+    overlayLayer.frame = CGRectMake(0, 0, size.width, size.height);
+    [overlayLayer setMasksToBounds:YES];
+    
+    CALayer *parentLayer = [CALayer layer];
+    CALayer *videoLayer = [CALayer layer];
+    parentLayer.frame = CGRectMake(0, 0, size.width, size.height);
+    videoLayer.frame = CGRectMake(0, 0, size.width, size.height);
+    [parentLayer addSublayer:videoLayer];
+    [parentLayer addSublayer:overlayLayer];
+    composition.animationTool = [AVVideoCompositionCoreAnimationTool
+                                 videoCompositionCoreAnimationToolWithPostProcessingAsVideoLayer:videoLayer inLayer:parentLayer];
+    
 }
 @end

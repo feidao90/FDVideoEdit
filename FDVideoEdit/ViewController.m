@@ -32,7 +32,7 @@
 #pragma mark - _initSubViews
 - (void)_initSubViews
 {
-    NSArray *array = @[@"裁剪播放",@"视频合成音轨",@"音轨合成音轨"];
+    NSArray *array = @[@"裁剪播放",@"视频合成音轨",@"音轨合成音轨",@"添加水印"];
     NSInteger count = array.count;
     CGFloat buttonWidth = 80.0;
     CGFloat buttonHeight = 80.0;
@@ -102,6 +102,22 @@
                     AVPlayerItem * songItem = [[AVPlayerItem alloc]initWithURL:fileURL];
                     AVPlayer *player = [[AVPlayer alloc]initWithPlayerItem:songItem];
                     [player play];
+                });
+            }];
+        }
+            break;
+        case WaterImage:
+        {
+            FDVideoManager *manager = [FDVideoManager shareManager];
+            AVURLAsset *videoAsset = [manager getVideoAsset];
+            [manager addWaterMarkTypeWithCorAnimationAndInputVideoURL:videoAsset WithCompletionHandler:^(NSURL * _Nonnull outPutURL) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    //创建播放器
+                    AVPlayerViewController *player = [[AVPlayerViewController alloc]init];
+                    player.player = [[AVPlayer alloc]initWithURL:outPutURL];
+                    
+                    //模态出播放器
+                    [self presentViewController:player animated:YES completion:nil];
                 });
             }];
         }

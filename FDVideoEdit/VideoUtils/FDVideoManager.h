@@ -46,6 +46,13 @@ NS_ASSUME_NONNULL_BEGIN
  @param completion 完成回调
  */
 - (void)compostionAudioWithVideoAsset:(AVURLAsset *)videoAsset audioAsset:(AVURLAsset *)audioAsset filePath:(NSURL *)filePath completion:(void(^)(NSURL *fileURL))completion;
+
+/**
+ 添加水印
+ @param videoAsset 视频路径url
+ @param handler 回到
+ */
+- (void)addWaterMarkTypeWithCorAnimationAndInputVideoURL:(AVURLAsset *)videoAsset WithCompletionHandler:(void (^)(NSURL* outPutURL))handler;
 @end
 
 NS_ASSUME_NONNULL_END
